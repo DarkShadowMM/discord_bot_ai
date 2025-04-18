@@ -1,53 +1,54 @@
-🤖 Teacher AI Discord Bot
 
-An AI-powered Discord bot built with Python that helps students learn more easily and effectively. This bot allows students to send their homework directly in Discord, and it uses the OpenAI API to explain tasks, offer guidance, and assist in completing their assignments in a supportive and educational way.
+# 🤖 ChatBuddy – AI-Powered Discord Bot
 
+ChatBuddy is an AI-powered Discord bot that uses the Hugging Face inference API to answer questions, tell jokes, generate tasks, and help with studies in a fun, conversational style.
 
-📚 Features
+## 🌟 Features
 
-- ✏️ Accepts homework questions via Discord
-- 🧠 Uses OpenAI's API to provide helpful explanations and study tips
-- 💬 Offers interactive conversations to guide students step-by-step
-- 🎓 Designed to support learning and understanding, not just give answers
+- `!ai <your question>` – Ask anything, get an AI-powered answer
+- `!joke` – Get a random tech-themed joke
+- `!task` – Receive a simple AI-generated task
+- `!homework <topic>` – Get study help from the AI
+- `!subject <subject>` – Generate a question related to a specific subject
+- `!help` – Show command list
 
+## 🚀 Getting Started
 
-
-🚀 Getting Started
-
-1. Clone the repository
-
-
-
-2. Install dependencies
-
-pip install discord
-pip install openai
-pip install requirements
+### 1. Clone the Repository
 
 
-3. Set up your environment variables
+### 2. Set Up Environment Variables
 
-Create a `.env` file in the root of your project and add your Discord bot token and OpenAI API key:
+Create a `.env` file or set environment variables manually. You'll need:
 
 ```
-DISCORD_TOKEN=your_discord_bot_token
-OPENAI_API_KEY=your_openai_api_key
+Discord_token=YOUR_DISCORD_BOT_TOKEN
+HuggingFace=YOUR_HUGGINGFACE_API_TOKEN
 ```
 
-4. Run the bot
+Alternatively, set them directly in your terminal or hosting environment.
+
+### 3. Install Dependencies
+
+Make sure you have Python 3.8 or higher installed, then:
+
+### 4. Run the Bot
+
+If everything is set up correctly, ChatBuddy will go online and start responding to commands!
 
 
-💡 Example Usage
+## 🧠 AI Model Info
 
-A student can send a message like:
-
-> `!homework Explain the process of photosynthesis`
-
-The bot will respond with a helpful breakdown, examples, and tips to better understand the concept.
+- Default model: `google/flan-t5-large`
+- You can switch to another Hugging Face model (like `mistralai/Mistral-7B-Instruct`) by editing the `MODEL` variable in the code.
 
 
-🙌 Contribution
+## 🛠️ File Overview
 
-Contributions are welcome! Feel free to open an issue or submit a pull request to improve the bot.
+- `bot.py` – Main bot script
+- `.env` – Environment variable file (should be in `.gitignore`)
+- `README.md` – You're reading it!
+
+
 
 This bot is created by Murad Mirzeyev for ADA SCHOOL AI Challenge 2025
