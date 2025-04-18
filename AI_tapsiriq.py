@@ -1,139 +1,145 @@
-import os
+#Murad
 import discord
-import openai
+import requests
+import os
+import random
 
+# Load tokens from environment variables
+DISCORD_BOT_TOKEN = os.getenv('Discord_token')
+HUGGINGFACE_API_TOKEN = os.getenv('HuggingFace')
 
-TOKEN = os.environ['discord_TOKEN']
-OPENAI_KEY = os.environ['AI_token']
+# Choose model
+MODEL = "google/flan-t5-large"
+# MODEL = "mistralai/Mistral-7B-Instruct"
 
-openai.api_key = OPENAI_KEY
-
-# Set up intents to allow the bot to read messages and mentions
+# Set up Discord bot with message content intent
 intents = discord.Intents.default()
+intents.messages = True
 intents.message_content = True
 client = discord.Client(intents=intents)
 
-# Track chat history and task count
-chat_history = []
-logged_in_user = None
-task_count = 0  
+# Character personality prompt for Hugging Face
+CHARACTER_PERSONA = (
+    "You are a helpful and informative AI assistant. Respond in a friendly and concise manner."
+)
 
+# Function to query Hugging Face API
+def query_huggingface(message):
+    headers = {
+        "Authorization": f"Bearer {HUGGINGFACE_API_TOKEN}"
+    }
+    payload = {
+        "inputs": f"{CHARACTER_PERSONA}\nUser: {message}\nAI:",
+        "parameters": {
+            "max_new_tokens": 150,
+            "temperature": 0.7,
+            "top_p": 0.9,
+            "repetition_penalty": 1.1
+        }
+    }
 
-def add_chat_history(history, message):
-    history.append(message)
-    del history[:-10] 
+    response = requests.post(
+        f"https://api-inference.huggingface.co/models/{MODEL}",
+        headers=headers,
+        json=payload
+    )
 
-# Function to format chat history for the prompt
-def format_chat_history(history):
-    return "\n".join([f"{msg.author.name}: {msg.content}" for msg in history])
+    if response.status_code == 200:
+        result = response.json()
+        if isinstance(result, list) and "generated_text" in result[0]:
+            generated = result[0]["generated_text"]
+            reply = generated.replace(message, "").strip()
+            return reply if reply else "🤔 I couldn't come up with a response this time!"
+        elif isinstance(result, dict) and "generated_text" in result:
+            return result["generated_text"]
+        elif isinstance(result, dict) and "error" in result:
+            return "🕒 The model is still warming up, please try again shortly."
+        else:
+            return str(result)
+    else:
+        return f"❌ Error: API call failed with status code {response.status_code}"
 
-
-def generate_prompt(username, history):
-    return f"""
-# Instructions
-You are a chatbot on Discord. Your username is '{username}'. You are a very helpful teacher. You help children complete short exercises and tasks. Be kind, clear, and encouraging. If you have helped with 5 tasks, say: "It is time to take a break."
-
-# Conversation
-{format_chat_history(history)}
-{username}:"""
-
-
+# Bot startup message
 @client.event
 async def on_ready():
-    global logged_in_user
-    logged_in_user = client.user.name
-    print(f'✅ Logged in as {logged_in_user}')
+    print(f"🤖 ChatBuddy is online as {client.user} and ready to assist!")
 
+# Handle incoming messages
 @client.event
 async def on_message(message):
-    global task_count
-
     if message.author == client.user:
         return
 
-    print(f"Received message: {message.content}")  
+    user_message = message.content.lower()
 
-    # Add the new message to the chat history
-    add_chat_history(chat_history, message)
-
-    # Handle the !task command
-    if message.content.lower().startswith("!task"):
-        print("Handling !task command...")  # Debugging
-        if task_count >= 5:
-            await message.channel.send("🧘 It is time to take a break!")
-            task_count = 0
-            return
-
-        # Generate a new task from OpenAI
-        response = openai.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {
-                    "role": "system",
-                    "content": "You are a kind teacher who gives fun, short, creative tasks to kids aged 7–10. Keep tasks positive, engaging, and easy to understand."
-                },
-                {
-                    "role": "user",
-                    "content": "Give me one short educational or creative task for a child."
-                }
-            ],
-            max_tokens=60,
-            temperature=0.8
+    if user_message.startswith("!help"):
+        help_text = (
+            "📚 **ChatBuddy Commands:**\n"
+            "`!ai <your question>` – Ask me anything, I'll try to help!\n"
+            "`!joke` – Want a laugh? I got you.\n"
+            "`!task` – Get an AI-generated task!\n"
+            "`!homework` – Get an AI-generated study question!\n"
+            "`!subject <subject>` – Get AI-powered questions about a specific subject!\n"
+            "`!help` – Show this help message.\n"
         )
-
-        task = response.choices[0].message.content.strip()
-        await message.channel.send(f"🎓 Here's your task: {task}")
-        task_count += 1
+        await message.channel.send(help_text)
         return
 
-    
-    if message.content.lower().startswith("!subject"):
-        print("Handling subject command...")
-        parts = message.content.split(" ", 2)
-        if len(parts) < 3:
-            await message.channel.send("Please use the format: !subject [subject] [question]")
-            return
-            
-        subject = parts[1]
-        question = parts[2]
-        prompt = f"You are a kind and smart teacher for kids, specifically teaching {subject}. Answer this question in a way a 7–10 year old would understand:\n\nQuestion: {question}"
-        
-
-        try:
-            response = openai.chat.completions.create(
-                model="gpt-3.5-turbo",
-                messages=[
-                    {"role": "system", "content": "You are a kind teacher who explains things to kids in a simple and friendly way."},
-                    {"role": "user", "content": prompt}
-                ],
-                max_tokens=100,
-                temperature=0.5
-            )
-        except openai.RateLimitError:
-            await message.channel.send("⚠️ Oops! I've reached my daily limit. Please ask the admin to check the OpenAI API quota! 🔑")
-            print("OpenAI API quota exceeded - please check your API key and billing status")
-            return
-        except openai.AuthenticationError:
-            await message.channel.send("⚠️ Authentication error! Please ask the admin to check the OpenAI API key! 🔑")
-            print("OpenAI API authentication error - please check your API key")
-            return
-        except Exception as e:
-            await message.channel.send("⚠️ Something went wrong with my thinking process! Please try again later! 🤔")
-            print(f"OpenAI API Error: {str(e)}")
-            return
-
-        answer = response.choices[0].message.content.strip()
-        await message.channel.send(f"🧠 {answer}")
-        task_count += 1
-
-        if task_count >= 5:
-            await message.channel.send("🧘 You've completed 5 tasks or questions! Time to take a short break.")
-            task_count = 0
+    elif user_message.startswith("!joke"):
+        jokes = [
+            "Why did the computer get cold? Because it left its Windows open! 🧊",
+            "I'm reading a book on anti-gravity. It's impossible to put down! 😄",
+            "Why did the robot go on vacation? It needed to recharge! 🔋",
+        ]
+        await message.channel.send(random.choice(jokes))
         return
 
+    elif user_message.startswith("!ai"):
+        user_input = message.content[4:].strip()
+        if not user_input:
+            await message.channel.send("✏️ Please type your question after `!ai`.")
+            return
+
+        thinking_lines = [
+            "🤖 Thinking really hard...",
+            "🔍 Looking that up in my brain-database...",
+            "💡 One moment while I craft a smart answer...",
+            "✨ Summoning the AI powers..."
+        ]
+        await message.channel.send(random.choice(thinking_lines))
+
+        response = query_huggingface(user_input)
+        await message.channel.send(response)
+
+    elif user_message.startswith("!task"):
+        response = query_huggingface("Generate a simple task.")
+        await message.channel.send(response)
+
+    elif user_message.startswith("!homework"):
+        user_input = message.content[10:].strip()
+        if not user_input:
+            await message.channel.send("✏️ Please type your question after `!homework`.")
+            return
+
+        thinking_lines = [
+            "🤖 Thinking really hard...",
+            "🔍 Looking that up in my brain-database...",
+            "💡 One moment while I craft a smart answer...",
+            "✨ Summoning the AI powers..."
+        ]
+        await message.channel.send(random.choice(thinking_lines))
+
+        response = query_huggingface(user_input)
+        await message.channel.send(response)
+
+    elif user_message.startswith("!subject"):
+        subject = user_message[9:].strip()
+        if not subject:
+            await message.channel.send("Please specify a subject after '!subject'.")
+            return
+        response = query_huggingface(f"Generate a question about {subject}.")
+        await message.channel.send(response)
 
 
-
-client.run(TOKEN)
-
-
+# Run the bot
+client.run(DISCORD_BOT_TOKEN)
