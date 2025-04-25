@@ -380,13 +380,13 @@ async def on_message(message):
 
             await message.channel.send(board_display + "\n" + instructions)
 
-        elif game_command == "draughts":
+        """elif game_command == "draughts":
             response = query_huggingface("Generate a draughts game scenario or strategy.")
             await message.channel.send("🔵 **Draughts Challenge:**\n" + response)
 
         elif game_command == "brainyquiz":
             response = query_huggingface("Generate a challenging quiz question with multiple choice answers.")
-            await message.channel.send("🧠 **Brainyquiz Question:**\n" + response)
+            await message.channel.send("🧠 **Brainyquiz Question:**\n" + response)"""
 
         else:
             await message.channel.send("❌ Invalid game! Type `!game` to see available games.")
