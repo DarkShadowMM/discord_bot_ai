@@ -1,4 +1,3 @@
-#Murad
 import discord
 import requests
 import os
@@ -22,6 +21,203 @@ client = discord.Client(intents=intents)
 CHARACTER_PERSONA = (
     "You are a helpful and informative AI assistant. Respond in a friendly and concise manner."
 )
+
+# Chess game state
+chess_games = {}
+
+# Chess pieces
+PIECES = {
+    'wr': '♖', 'wn': '♘', 'wb': '♗', 'wq': '♕', 'wk': '♔', 'wp': '♙',
+    'br': '♜', 'bn': '♞', 'bb': '♝', 'bq': '♛', 'bk': '♚', 'bp': '♟'
+}
+
+# Initial board setup
+INITIAL_BOARD = [
+    ['br', 'bn', 'bb', 'bq', 'bk', 'bb', 'bn', 'br'],
+    ['bp', 'bp', 'bp', 'bp', 'bp', 'bp', 'bp', 'bp'],
+    ['', '', '', '', '', '', '', ''],
+    ['', '', '', '', '', '', '', ''],
+    ['', '', '', '', '', '', '', ''],
+    ['', '', '', '', '', '', '', ''],
+    ['wp', 'wp', 'wp', 'wp', 'wp', 'wp', 'wp', 'wp'],
+    ['wr', 'wn', 'wb', 'wq', 'wk', 'wb', 'wn', 'wr']
+]
+
+def new_chess_game():
+    return {
+        'board': [row[:] for row in INITIAL_BOARD],
+        'turn': 'w',  # w for white, b for black
+        'selected': None,
+        'status': "White's turn to play"
+    }
+
+def get_piece_symbol(piece_code):
+    return PIECES.get(piece_code, ' ')
+
+def render_board(board):
+    board_display = "♟️ **Chess Game:**\n```\n  a b c d e f g h\n"
+    for i, row in enumerate(board):
+        board_display += f"{8-i} "
+        board_display += " ".join(get_piece_symbol(cell) for cell in row) + f" {8-i}\n"
+    board_display += "  a b c d e f g h\n```"
+    return board_display
+
+def parse_position(position):
+    """Convert chess notation (e.g., 'e2') to board indices (row, col)"""
+    if not position or len(position) != 2:
+        return None
+
+    col = ord(position[0].lower()) - ord('a')
+    row = 8 - int(position[1])
+
+    if 0 <= row < 8 and 0 <= col < 8:
+        return (row, col)
+    return None
+
+def validate_move(game, from_pos, to_pos):
+    """Basic move validation"""
+    from_row, from_col = from_pos
+    to_row, to_col = to_pos
+
+    # Check if source has a piece
+    piece = game['board'][from_row][from_col]
+    if not piece:
+        return False, "No piece at source position."
+
+    # Check if it's the right player's turn
+    if piece[0] != game['turn']:
+        return False, f"It's {'White' if game['turn'] == 'w' else 'Black'}'s turn."
+
+    # Check if destination has friendly piece
+    dest_piece = game['board'][to_row][to_col]
+    if dest_piece and dest_piece[0] == game['turn']:
+        return False, "Cannot capture your own piece."
+
+    # Implement basic movement rules for each piece
+    piece_type = piece[1]
+
+    # Pawn movement
+    if piece_type == 'p':
+        # Direction depends on color
+        direction = -1 if piece[0] == 'w' else 1
+
+        # Forward move
+        if from_col == to_col and not dest_piece:
+            # Single square forward
+            if to_row == from_row + direction:
+                return True, ""
+
+            # Double square forward from starting position
+            if ((piece[0] == 'w' and from_row == 6 and to_row == 4) or 
+                (piece[0] == 'b' and from_row == 1 and to_row == 3)):
+                # Check if the path is clear
+                if not game['board'][from_row + direction][from_col]:
+                    return True, ""
+
+        # Capture move (diagonal)
+        elif abs(from_col - to_col) == 1 and to_row == from_row + direction:
+            if dest_piece and dest_piece[0] != piece[0]:
+                return True, ""
+
+    # Knight movement
+    elif piece_type == 'n':
+        row_diff = abs(from_row - to_row)
+        col_diff = abs(from_col - to_col)
+        if (row_diff == 2 and col_diff == 1) or (row_diff == 1 and col_diff == 2):
+            return True, ""
+
+    # Bishop movement
+    elif piece_type == 'b':
+        row_diff = abs(from_row - to_row)
+        col_diff = abs(from_col - to_col)
+        if row_diff == col_diff:
+            # Check if path is clear
+            row_step = 1 if to_row > from_row else -1
+            col_step = 1 if to_col > from_col else -1
+
+            r, c = from_row + row_step, from_col + col_step
+            while r != to_row:
+                if game['board'][r][c]:
+                    return False, "Path is not clear."
+                r += row_step
+                c += col_step
+
+            return True, ""
+
+    # Rook movement
+    elif piece_type == 'r':
+        if from_row == to_row or from_col == to_col:
+            # Check if path is clear
+            if from_row == to_row:  # Horizontal movement
+                start, end = min(from_col, to_col), max(from_col, to_col)
+                for c in range(start + 1, end):
+                    if game['board'][from_row][c]:
+                        return False, "Path is not clear."
+            else:  # Vertical movement
+                start, end = min(from_row, to_row), max(from_row, to_row)
+                for r in range(start + 1, end):
+                    if game['board'][r][from_col]:
+                        return False, "Path is not clear."
+
+            return True, ""
+
+    # Queen movement (combination of bishop and rook)
+    elif piece_type == 'q':
+        row_diff = abs(from_row - to_row)
+        col_diff = abs(from_col - to_col)
+
+        # Diagonal movement
+        if row_diff == col_diff:
+            row_step = 1 if to_row > from_row else -1
+            col_step = 1 if to_col > from_col else -1
+
+            r, c = from_row + row_step, from_col + col_step
+            while r != to_row:
+                if game['board'][r][c]:
+                    return False, "Path is not clear."
+                r += row_step
+                c += col_step
+
+            return True, ""
+
+        # Straight movement
+        elif from_row == to_row or from_col == to_col:
+            if from_row == to_row:  # Horizontal movement
+                start, end = min(from_col, to_col), max(from_col, to_col)
+                for c in range(start + 1, end):
+                    if game['board'][from_row][c]:
+                        return False, "Path is not clear."
+            else:  # Vertical movement
+                start, end = min(from_row, to_row), max(from_row, to_row)
+                for r in range(start + 1, end):
+                    if game['board'][r][from_col]:
+                        return False, "Path is not clear."
+
+            return True, ""
+
+    # King movement
+    elif piece_type == 'k':
+        row_diff = abs(from_row - to_row)
+        col_diff = abs(from_col - to_col)
+
+        # Kings move one square in any direction
+        if row_diff <= 1 and col_diff <= 1:
+            return True, ""
+
+    return False, "Invalid move for this piece."
+
+def make_move(game, from_pos, to_pos):
+    from_row, from_col = from_pos
+    to_row, to_col = to_pos
+
+    # Move the piece
+    game['board'][to_row][to_col] = game['board'][from_row][from_col]
+    game['board'][from_row][from_col] = ''
+
+    # Switch turns
+    game['turn'] = 'b' if game['turn'] == 'w' else 'w'
+    game['status'] = f"{'White' if game['turn'] == 'w' else 'Black'}'s turn to play"
+    game['selected'] = None
 
 # Function to query Hugging Face API
 def query_huggingface(message):
@@ -71,6 +267,7 @@ async def on_message(message):
         return
 
     user_message = message.content.lower()
+    channel_id = str(message.channel.id)
 
     if user_message.startswith("!help"):
         help_text = (
@@ -80,6 +277,7 @@ async def on_message(message):
             "`!task` – Get an AI-generated task!\n"
             "`!homework` – Get an AI-generated study question!\n"
             "`!subject <subject>` – Get AI-powered questions about a specific subject!\n"
+            "`!game` – Show available games and how to play them!\n"
             "`!help` – Show this help message.\n"
         )
         await message.channel.send(help_text)
@@ -140,6 +338,154 @@ async def on_message(message):
         response = query_huggingface(f"Generate a question about {subject}.")
         await message.channel.send(response)
 
+    elif user_message.startswith("!game"):
+        game_command = user_message[6:].strip().lower()
+
+        if not game_command:
+            game_help = (
+                "🎮 **Available Games:**\n\n"
+                "1. **Chess** ♟️\n"
+                "- Type `!game chess` to start a chess game\n"
+                "- Move pieces with `!move e2 e4` format\n"
+                "- Type `!select e2` to highlight a piece\n"
+                "- Type `!move e4` to move selected piece\n"
+                "- Type `!chess` to view the current board\n"
+                "- Type `!reset chess` to reset the game\n\n"
+                "2. **Draughts** 🔵\n"
+                "- Type `!game draughts` to start a draughts game\n"
+                "- Get tips and game scenarios\n\n"
+                "3. **Brainyquiz** 🧠\n"
+                "- Type `!game brainyquiz` to start a quiz\n"
+                "- Test your knowledge with AI-generated questions\n"
+            )
+            await message.channel.send(game_help)
+            return
+
+        if game_command == "chess":
+            # Create a new chess game for this channel
+            chess_games[channel_id] = new_chess_game()
+            game = chess_games[channel_id]
+
+            # Display the board
+            board_display = render_board(game['board'])
+
+            instructions = (
+                "**How to play:**\n"
+                "1. White pieces: ♔♕♖♗♘♙\n"
+                "2. Black pieces: ♚♛♜♝♞♟\n"
+                "3. Move with `!move e2 e4` or select with `!select e2` then `!move e4`\n"
+                "4. Type `!chess` to see the current board\n"
+                "5. Type `!reset chess` to reset the game\n"
+            )
+
+            await message.channel.send(board_display + "\n" + instructions)
+
+        elif game_command == "draughts":
+            response = query_huggingface("Generate a draughts game scenario or strategy.")
+            await message.channel.send("🔵 **Draughts Challenge:**\n" + response)
+
+        elif game_command == "brainyquiz":
+            response = query_huggingface("Generate a challenging quiz question with multiple choice answers.")
+            await message.channel.send("🧠 **Brainyquiz Question:**\n" + response)
+
+        else:
+            await message.channel.send("❌ Invalid game! Type `!game` to see available games.")
+
+    # Chess game commands
+    elif user_message.startswith("!chess"):
+        if channel_id not in chess_games:
+            await message.channel.send("❌ No chess game in progress. Type `!game chess` to start.")
+            return
+
+        # Display the current board
+        game = chess_games[channel_id]
+        board_display = render_board(game['board'])
+        status_message = f"\n**Status:** {game['status']}"
+
+        await message.channel.send(board_display + status_message)
+
+    elif user_message.startswith("!select"):
+        if channel_id not in chess_games:
+            await message.channel.send("❌ No chess game in progress. Type `!game chess` to start.")
+            return
+
+        game = chess_games[channel_id]
+        position = user_message[8:].strip().lower()
+        pos = parse_position(position)
+
+        if not pos:
+            await message.channel.send("❌ Invalid position. Use format like 'e2'.")
+            return
+
+        row, col = pos
+        piece = game['board'][row][col]
+
+        if not piece:
+            await message.channel.send("❌ No piece at that position.")
+            return
+
+        if piece[0] != game['turn']:
+            await message.channel.send(f"❌ It's {'White' if game['turn'] == 'w' else 'Black'}'s turn.")
+            return
+
+        game['selected'] = pos
+        game['status'] = f"Selected {get_piece_symbol(piece)} at {position}. Use `!move <position>` to move."
+
+        # Display the board with selection
+        board_display = render_board(game['board'])
+        status_message = f"\n**Status:** {game['status']}"
+
+        await message.channel.send(board_display + status_message)
+
+    elif user_message.startswith("!move"):
+        if channel_id not in chess_games:
+            await message.channel.send("❌ No chess game in progress. Type `!game chess` to start.")
+            return
+
+        game = chess_games[channel_id]
+        parts = user_message[6:].strip().lower().split()
+
+        # Format can be "!move e2 e4" or "!move e4" (if a piece is selected)
+        if len(parts) == 2:
+            from_pos = parse_position(parts[0])
+            to_pos = parse_position(parts[1])
+
+            if not from_pos or not to_pos:
+                await message.channel.send("❌ Invalid position(s). Use format like 'e2 e4'.")
+                return
+
+        elif len(parts) == 1 and game['selected']:
+            from_pos = game['selected']
+            to_pos = parse_position(parts[0])
+
+            if not to_pos:
+                await message.channel.send("❌ Invalid position. Use format like 'e4'.")
+                return
+        else:
+            await message.channel.send("❌ Invalid move format. Use `!move e2 e4` or select a piece first with `!select e2`.")
+            return
+
+        # Validate and make the move
+        valid, error_msg = validate_move(game, from_pos, to_pos)
+
+        if valid:
+            make_move(game, from_pos, to_pos)
+            board_display = render_board(game['board'])
+            status_message = f"\n**Status:** {game['status']}"
+
+            await message.channel.send(board_display + status_message)
+        else:
+            await message.channel.send(f"❌ Invalid move: {error_msg}")
+
+    elif user_message.startswith("!reset chess"):
+        if channel_id in chess_games:
+            chess_games[channel_id] = new_chess_game()
+            game = chess_games[channel_id]
+            board_display = render_board(game['board'])
+
+            await message.channel.send("♟️ **Chess game reset!**\n" + board_display)
+        else:
+            await message.channel.send("❌ No chess game to reset. Type `!game chess` to start.")
 
 # Run the bot
 client.run(DISCORD_BOT_TOKEN)
