@@ -5,13 +5,19 @@ ChatBuddy is an AI-powered Discord bot that uses the Hugging Face inference API 
 
 ## 🌟 Features
 
-- `!ai <your question>` – Ask anything, get an AI-powered answer
-- `!joke` – Get a random tech-themed joke
-- `!task` – Receive a simple AI-generated task
-- `!homework <topic>` – Get study help from the AI
-- `!subject <subject>` – Generate a question related to a specific subject
-- `!help` – Show command list
-
+"`!ai <your question>` – Ask me anything, I'll try to help!\n"
+"`!style <style> <question>` – Get answers in different styles (kid, teacher, poet, historian, scientist, chef, detective)\n"
+"`!cite <topic>` – Find academic citations for any topic\n"
+"`!joke` – Want a laugh? I got you.\n"
+"`!task` – Get an AI-generated task!\n"
+"`!homework` – Get an AI-generated study question!\n"
+"`!subject <subject>` – Get AI-powered questions about a specific subject!\n"
+"`!game` – Show available games and how to play them!\n"
+"`!help` – Show this help message.\n\n"
+            "**Examples:**\n"
+"`!style kid What is gravity?` – Get a kid-friendly explanation\n"
+"`!cite quantum physics` – Find citations about quantum physics\n"
+"`!book` – Get link to e-derslik portal\n"
 ## 🚀 Getting Started
 
 ### 1. Clone the Repository
